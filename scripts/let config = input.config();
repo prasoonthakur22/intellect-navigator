@@ -1,0 +1,84 @@
+async function main() {
+
+    let config = input.config();
+    let rephonic_url = config["REPHONIC_URL"];
+    try {
+        let keyword = config["KEYWORD"];
+        let client = config["CLIENT"];
+        let clientId = await getClientId(client);
+        let slug = getSlug(rephonic_url);
+
+        const podcast_id_airtable = secondData.data.airtable;
+        console.log("Podcast ID:", podcast_id_airtable);
+
+        const exists = await podcastExistsInAirtable(podcast_id_airtable);
+        if (!exists) {
+            console.log("Exiting because podcast ID does not exist in Airtable.");
+            return;
+        }
+
+    } catch (error) {
+        console.error("An error occurred:", error);
+    }
+}
+
+async function podcastExistsInAirtable(podcast_id_airtable) {
+    let table = base.getTable("Podcasts");
+
+    let queryResult = await table.selectRecordsAsync({ fields: ["podcast_record_ID", "Podcast_Name_uq"] });
+
+    // Using .find() to get the first record that matches the condition
+    let filteredRecord = queryResult.records.find(record => {
+        return record.getCellValue("podcast_record_ID") === podcast_id_airtable;
+    });
+
+    if (filteredRecord) {
+        let podcastName = filteredRecord.getCellValue("Podcast_Name_uq");
+        console.log('podcast_Name_uq:', podcastName);
+        console.log(filteredRecord);
+
+        let podcastURL = `https://rephonic.com/podcasts/${podcastName}`;
+        updateLinkPodcast(rephonic_url, podcastURL);
+    } else {
+        console.log('Record not found');
+    }
+
+    if (query.records.length > 0) {
+        console.log("Podcast ID found in Airtable.");
+        return true;
+    } else {
+        console.log("Podcast ID not found in Airtable.");
+        return false;
+    }
+}
+
+async function updateLinkPodcast(rephonicURL, newLinkPodcastValue) {
+    let addFromRephonicTable = base.getTable("ADDFROMREPHONIC");
+
+    let queryResultForAddFromRephonic = await addFromRephonicTable.selectRecordsAsync({
+        fields: ["URL", "LINK_PODCAST"]
+    });
+
+    let recordToUpdate = queryResultForAddFromRephonic.records.find(record => {
+        return record.getCellValue("URL") === rephonicURL;
+    });
+
+    if (recordToUpdate) {
+        // Now update the LINK_PODCAST field for this record
+        await addFromRephonicTable.updateRecordsAsync([
+            {
+                id: recordToUpdate.id,
+                fields: {
+                    "LINK_PODCAST": newLinkPodcastValue
+                }
+            }
+        ]);
+        console.log('Record updated successfully');
+        return true;
+    } else {
+        console.log('Record not found in ADDFROMREPHONIC table');
+        return false;
+    }
+}
+
+main();
